@@ -1,9 +1,8 @@
 [
   {
     "kernelSource": {
-      "name": "arayz79_x00td",
-    "repo": "https://github.com/arazy79/android_kernel_asus_sdm660"
-",
+      "name": "arazy79_x00td",
+      "repo": "https://github.com/arazy79/android_kernel_asus_sdm660",
       "branch": "r7/hmp",
       "device": "x00td"
     },
