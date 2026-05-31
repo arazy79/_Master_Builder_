@@ -64,10 +64,10 @@ jobs:
         run: |
           toolchains_num="$(echo $toolchains | jq 'length')"
           echo $toolchains_num
-          for ((i=0;i<toolchains_num;i++)); do
+          for ((i=0;i<<toolchains_num;i++)); do
             name=$(echo $toolchains | jq -r ".[$i].name")
             repo=$(echo $toolchains | jq -r ".[$i].repo")
-            branch=$(echo $toolchains | jq -r ".[$i].branch")
+            branch=$(echo $toolchains | jq -r ".[$i].branch"
             git clone --recursive --branch $branch $repo $name --depth=1
             echo "$(pwd)/$name/" >> $GITHUB_PATH
             echo "$(pwd)/$name/bin" >> $GITHUB_PATH
@@ -144,8 +144,11 @@ jobs:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
           echo "PATH Variable: $PATH"
-          make ${args}
-          make ${args} Image.gz-dtb
+          make ${{ env.args }} dtbs
+          rm -f ./${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz-dtb
+          make ${{ env.args }} Image.gz-dtb
+          echo "=== Build complete ==="
+          ls -la ./${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/
 
       - name: "Upload Image"
         uses: actions/upload-artifact@v4
@@ -162,14 +165,13 @@ jobs:
           path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz
           if-no-files-found: ignore
           retention-days: 7
-          
 
       - name: "Upload Image.gz-dtb"
         uses: actions/upload-artifact@v4
         with:
           name: Image.gz-dtb(${{ env.kernelDevice }}-${{ env.kernelName }})
           path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz-dtb
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 7
 
       - name: "Package AnyKernel3"
