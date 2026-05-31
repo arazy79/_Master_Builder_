@@ -36,15 +36,13 @@ jobs:
         repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
     env:
       kernelDir: ${{ matrix.repos.kernelSource.name }}_${{ matrix.repos.kernelSource.device }}
-
       kernelName: ${{ matrix.repos.kernelSource.name }}
       kernelRepo: ${{ matrix.repos.kernelSource.repo }}
       kernelBranch: ${{ matrix.repos.kernelSource.branch }}
       kernelDevice: ${{ matrix.repos.kernelSource.device }}
-
       DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.device }}_defconfig
-
       withKernelSU: ${{ matrix.repos.withKernelSU }}
+
     steps:
       - name: "Create working dir"
         run: mkdir -p $kernelDir
@@ -53,10 +51,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python3 libarchive-tools
+
       - name: "Clone kernel source"
         working-directory: ./${{ env.kernelDir }}
         run: |
           git clone --recursive --branch $kernelBranch $kernelRepo $kernelName --depth=1
+
       - name: "Get toolchains"
         working-directory: ./${{ env.kernelDir }}
         env:
@@ -73,6 +73,7 @@ jobs:
             echo "$(pwd)/$name/bin" >> $GITHUB_PATH
           done
           echo "PATH Variable: $PATH"
+
       - name: "Set args"
         id: generate-args
         working-directory: ./${{ env.kernelDir }}
@@ -113,6 +114,7 @@ jobs:
             args="$args CC=$CC"
           fi
           echo "args=$args" >> $GITHUB_OUTPUT
+
       - name: "Update KernelSU"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
@@ -127,7 +129,7 @@ jobs:
           echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
       - name: "Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
@@ -135,6 +137,7 @@ jobs:
         run: |
           echo "PATH Variable: $PATH"
           make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
+
       - name: "Build kernel"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
@@ -142,6 +145,7 @@ jobs:
         run: |
           echo "PATH Variable: $PATH"
           make ${args}
+
       - name: "Upload Image"
         uses: actions/upload-artifact@v4
         with:
@@ -155,6 +159,28 @@ jobs:
         with:
           name: Image.gz(${{ env.kernelDevice }}-${{ env.kernelName }})
           path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "Upload Image.gz-dtb"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image.gz-dtb(${{ env.kernelDevice }}-${{ env.kernelName }})
+          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz-dtb
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "Package AnyKernel3"
+        run: |
+          git clone --depth=1 https://github.com/RyuujiX/AnyKernel3 -b master AK3
+          cp ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz-dtb AK3/
+          cd AK3 && zip -r9 ../kernel-${{ env.kernelDevice }}.zip . -x ".git*"
+
+      - name: "Upload AnyKernel3 zip"
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnyKernel3(${{ env.kernelDevice }}-${{ env.kernelName }})
+          path: ./kernel-${{ env.kernelDevice }}.zip
           if-no-files-found: ignore
           retention-days: 7
 
