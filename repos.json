@@ -27,6 +27,10 @@
       "CLANG_TRIPLE": "aarch64-linux-gnu-",
       "AR": "",
       "CC": "clang"
+    },
+    "AnyKernel3": {
+      "repo": "https://github.com/RyuujiX/AnyKernel3",
+      "branch": "master"
     }
   }
 ]
