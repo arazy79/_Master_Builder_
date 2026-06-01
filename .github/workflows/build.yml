@@ -5,6 +5,16 @@ env:
 
 on:
   workflow_dispatch:
+    inputs:
+      pilihan_kernel:
+        description: 'Pilih Kernel yang Mau Di-build'
+        required: true
+        default: 'SEMUA'
+        type: choice
+        options:
+          - 'SEMUA'
+          - 'Project-Infinity'
+          - 'RyujinK'
 
 jobs:
   Set-repos:
@@ -19,9 +29,18 @@ jobs:
       - name: "Generate Matrix"
         id: generate-matrix
         run: |
-          echo "repos<<EOF" >> $GITHUB_OUTPUT
-          cat ${{ env.CONFIGURATION }} >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Jika milih SEMUA, biarkan membaca seluruh isi repos.json
+          if [ "${{ github.event.inputs.pilihan_kernel }}" = "SEMUA" ]; then
+            echo "repos<<EOF" >> $GITHUB_OUTPUT
+            cat ${{ env.CONFIGURATION }} >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            # Jika milih salah satu, filter isi json berdasarkan nama kernel yang dipilih
+            echo "repos<<EOF" >> $GITHUB_OUTPUT
+            cat ${{ env.CONFIGURATION }} | jq '[.[] | select(.kernelSource.name == "${{ github.event.inputs.pilihan_kernel }}")]' >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
 
   Build-Kernel:
     name: "Build kernel"
