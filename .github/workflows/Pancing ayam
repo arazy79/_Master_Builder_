@@ -1,0 +1,21 @@
+name: "Pancing Branch 11LV"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tarik-branch:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone dan Push Branch
+        run: |
+          # 1. Clone langsung branch 11LV dari source aslinya (pkm774)
+          git clone --branch 11LV https://github.com/pkm774/android_kernel_asus_sdm660.git kernel-source --depth=1
+          cd kernel-source
+          
+          # 2. Ganti target push ke repo pi_oc milik abang pakai token bawaan GITHUB_TOKEN
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository_owner }}/android_kernel_asus_sdm660.git
+          
+          # 3. Push branch 11LV langsung ke repo abang
+          git push origin 11LV
+
