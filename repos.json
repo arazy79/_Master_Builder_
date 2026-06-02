@@ -138,5 +138,40 @@
       "repo": "https://github.com/RyuujiX/AnyKernel3",
       "branch": "master"
     }
+  },
+  {
+    "kernelSource": {
+      "name": "ElectroPerf",
+      "repo": "https://github.com/arazy79/ElectroPerf-LTO",
+      "branch": "master",
+      "device": "X00TD",
+      "defconfig": "X00TD_defconfig"
+    },
+    "withKernelSU": false,
+    "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
+      {
+        "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone",
+        "branch": "11",
+        "name": "clang"
+      }
+    ],
+    "params": {
+      "ARCH": "arm64",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
+      "AR": "",
+      "CC": "clang"
+    },
+    "AnyKernel3": {
+      "repo": "https://github.com/RyuujiX/AnyKernel3",
+      "branch": "master"
+    }
   }
 ]
