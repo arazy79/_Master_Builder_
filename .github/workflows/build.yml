@@ -60,7 +60,9 @@ jobs:
       kernelRepo: ${{ matrix.repos.kernelSource.repo }}
       kernelBranch: ${{ matrix.repos.kernelSource.branch }}
       kernelDevice: ${{ matrix.repos.kernelSource.device }}
-      DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.device }}_defconfig
+      DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.defconfig }}
+      AK3_REPO: ${{ matrix.repos.AnyKernel3.repo }}
+      AK3_BRANCH: ${{ matrix.repos.AnyKernel3.branch }}
       withKernelSU: ${{ matrix.repos.withKernelSU }}
 
     steps:
@@ -188,7 +190,7 @@ jobs:
       - name: "Package AnyKernel3"
         run: |
           AK3_DIR="${{ github.workspace }}/AK3"
-          git clone --depth=1 https://github.com/RyuujiX/AnyKernel3 -b master "$AK3_DIR"
+          git clone --depth=1 $AK3_REPO -b $AK3_BRANCH "$AK3_DIR"
           cp ./${{ env.kernelDir }}/${{ env.kernelName }}/out/arch/${{ env.ARCH }}/boot/Image.gz-dtb "$AK3_DIR/"
           cd "$AK3_DIR" && zip -r9 ${{ github.workspace }}/kernel-${{ env.kernelDevice }}.zip . -x ".git*"
 
