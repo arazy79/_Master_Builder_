@@ -4,7 +4,8 @@
       "name": "Project-Infinity-10",
       "repo": "https://github.com/pkm774/kernel_asus_sdm660",
       "branch": "10",
-      "device": "X00TD"
+      "device": "X00TD",
+      "defconfig": "X00T_defconfig"
     },
     "withKernelSU": false,
     "toolchains": [
@@ -38,7 +39,8 @@
       "name": "Project-Infinity-11",
       "repo": "https://github.com/pkm774/kernel_asus_sdm660",
       "branch": "11",
-      "device": "X00TD"
+      "device": "X00TD",
+      "defconfig": "X00T_defconfig"
     },
     "withKernelSU": false,
     "toolchains": [
@@ -72,7 +74,8 @@
       "name": "Project-Infinity-11LV",
       "repo": "https://github.com/pkm774/kernel_asus_sdm660",
       "branch": "11LV",
-      "device": "X00TD"
+      "device": "X00TD",
+      "defconfig": "X00T_defconfig"
     },
     "withKernelSU": false,
     "toolchains": [
@@ -106,7 +109,8 @@
       "name": "SkyWalker-r7",
       "repo": "https://github.com/RyuujiX/android_kernel_asus_sdm660",
       "branch": "r7/hmp",
-      "device": "X00TD"
+      "device": "X00TD",
+      "defconfig": "X00TD_defconfig"
     },
     "withKernelSU": false,
     "toolchains": [
