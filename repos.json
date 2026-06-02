@@ -1,8 +1,110 @@
 [
   {
     "kernelSource": {
-      "name": "arazy79_x00td",
-      "repo": "https://github.com//arazy79/android_kernel_asus_sdm660",
+      "name": "Project-Infinity-10",
+      "repo": "https://github.com/pkm774/kernel_asus_sdm660",
+      "branch": "10",
+      "device": "X00TD"
+    },
+    "withKernelSU": false,
+    "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
+      {
+        "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone",
+        "branch": "11",
+        "name": "clang"
+      }
+    ],
+    "params": {
+      "ARCH": "arm64",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
+      "AR": "",
+      "CC": "clang"
+    },
+    "AnyKernel3": {
+      "repo": "https://github.com/RyuujiX/AnyKernel3",
+      "branch": "master"
+    }
+  },
+  {
+    "kernelSource": {
+      "name": "Project-Infinity-11",
+      "repo": "https://github.com/pkm774/kernel_asus_sdm660",
+      "branch": "11",
+      "device": "X00TD"
+    },
+    "withKernelSU": false,
+    "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
+      {
+        "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone",
+        "branch": "11",
+        "name": "clang"
+      }
+    ],
+    "params": {
+      "ARCH": "arm64",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
+      "AR": "",
+      "CC": "clang"
+    },
+    "AnyKernel3": {
+      "repo": "https://github.com/RyuujiX/AnyKernel3",
+      "branch": "master"
+    }
+  },
+  {
+    "kernelSource": {
+      "name": "Project-Infinity-11LV",
+      "repo": "https://github.com/pkm774/kernel_asus_sdm660",
+      "branch": "11LV",
+      "device": "X00TD"
+    },
+    "withKernelSU": false,
+    "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
+      {
+        "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone",
+        "branch": "11",
+        "name": "clang"
+      }
+    ],
+    "params": {
+      "ARCH": "arm64",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
+      "AR": "",
+      "CC": "clang"
+    },
+    "AnyKernel3": {
+      "repo": "https://github.com/RyuujiX/AnyKernel3",
+      "branch": "master"
+    }
+  },
+  {
+    "kernelSource": {
+      "name": "SkyWalker-r7",
+      "repo": "https://github.com/RyuujiX/android_kernel_asus_sdm660",
       "branch": "r7/hmp",
       "device": "X00TD"
     },
