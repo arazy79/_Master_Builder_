@@ -106,7 +106,7 @@
   },
   {
     "kernelSource": {
-      "name": "SkyWalker-r7",
+      "name": "SkyWalker-r7/HMP",
       "repo": "https://github.com/arazy79/SkyWalker_4.4_A9-12",
       "branch": "r7/hmp",
       "device": "X00TD",
