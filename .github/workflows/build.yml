@@ -1,4 +1,4 @@
-name: Build SDM660 Kernel (No-Heredoc)
+name: Build SDM660 Kernel (Fixed)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       branch:
         description: "Branch to build (e.g., r9/hmp)"
         required: true
-        default: "r9/hmp"
+        default: "r9-hmp"
       oc_gpu:
         description: "Enable GPU OC 700MHz?"
         required: true
@@ -58,6 +58,20 @@ jobs:
           fetch-depth: 1
           path: kernel
 
+      - name: Set safe artifact name
+        id: safe_name
+        run: |
+          BRANCH="${{ github.event.inputs.branch }}"
+          SAFE_BRANCH=$(echo "$BRANCH" | sed 's/\//-/g')
+          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+          if [ "${{ github.event.inputs.oc_gpu }}" == "true" ]; then
+            echo "artifact_name=kernel-${SAFE_BRANCH}-gpu-oc" >> $GITHUB_OUTPUT
+            echo "ak_name=AnyKernel3-${SAFE_BRANCH}-gpu-oc" >> $GITHUB_OUTPUT
+          else
+            echo "artifact_name=kernel-${SAFE_BRANCH}" >> $GITHUB_OUTPUT
+            echo "ak_name=AnyKernel3-${SAFE_BRANCH}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Grep GPU validation
         working-directory: kernel
         run: |
@@ -95,7 +109,6 @@ jobs:
           echo "[INFO] DT: $DT"
           cp "$DT" "$DT.bak"
           grep -n -A20 'qcom,speed-bin = <90>' "$DT" | head -30 || true
-          # Use sed with address range: only between speed-bin 90 and next gpu-pwrlevels block
           sed -i '/qcom,speed-bin = <90>/,/qcom,gpu-pwrlevel@5/{s/585000000/700000000/g; s/588000000/700000000/g}' "$DT"
           echo "[OK] Speed bin 90 patched to 700 MHz"
           grep -n -A20 'qcom,speed-bin = <90>' "$DT" | head -30 || true
@@ -113,7 +126,6 @@ jobs:
           if grep -q "700000000" "$CLK"; then
             echo "[INFO] 700 MHz already present"
           else
-            # Use sed to append after 647000000 line (or 588000000 if 647 not found)
             if grep -q "647000000" "$CLK"; then
               sed -i '/F_GFX(647000000,.*),/a\\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),' "$CLK"
               echo "[OK] Inserted 700/750 MHz after 647 MHz"
@@ -161,7 +173,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ github.event.inputs.branch }}${{ github.event.inputs.oc_gpu == 'true' && '-gpu-oc' || '' }}
+          name: ${{ steps.safe_name.outputs.artifact_name }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/out/arch/arm64/boot/dtbo.img
@@ -191,6 +203,6 @@ jobs:
         if: hashFiles('kernel/AnyKernel3.zip') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: AnyKernel3-${{ github.event.inputs.branch }}${{ github.event.inputs.oc_gpu == 'true' && '-gpu-oc' || '' }}
+          name: ${{ steps.safe_name.outputs.ak_name }}
           path: kernel/AnyKernel3.zip
           retention-days: 7
