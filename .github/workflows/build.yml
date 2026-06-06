@@ -11,10 +11,6 @@ on:
         description: "Enable GPU OC 700MHz?"
         required: true
         default: "true"
-      oc_cpu:
-        description: "Enable CPU OC?"
-        required: true
-        default: "false"
       defconfig:
         description: "Defconfig file"
         required: true
@@ -23,14 +19,12 @@ on:
 env:
   ARCH: arm64
   SUBARCH: arm64
-  # Use AOSP prebuilt Clang (smaller, no need to download Neutron)
-  TC_DIR: "${{ github.workspace }}/tc"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Free up disk space (manual)
+      - name: Free up disk space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
@@ -45,7 +39,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ccache curl flex git gnupg gperf \
+            bc bison build-essential curl flex git gnupg gperf \
             libelf-dev libncurses5-dev libssl-dev lz4 \
             squashfs-tools xsltproc zip zlib1g-dev zstd \
             python3 python3-pip \
@@ -54,22 +48,6 @@ jobs:
             binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
           clang --version
           aarch64-linux-gnu-gcc --version
-
-      - name: Download AOSP Clang (prebuilt, smaller)
-        run: |
-          mkdir -p $TC_DIR
-          # AOSP Clang 14.0.6 for Android 13 - enough for 4.4 kernel
-          curl -L "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android13-release/clang-r450784d.tar.gz" \
-            -o /tmp/aosp-clang.tar.gz || \
-          curl -L "https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-19.1.tar.gz" \
-            -o /tmp/aosp-clang.tar.gz
-
-          if [ -f /tmp/aosp-clang.tar.gz ]; then
-            tar -xzf /tmp/aosp-clang.tar.gz -C $TC_DIR --strip-components=1 || true
-            rm /tmp/aosp-clang.tar.gz
-          fi
-
-          ls -la $TC_DIR/bin/ 2>/dev/null || echo "Using system clang"
 
       - name: Checkout kernel source (shallow)
         uses: actions/checkout@v4
@@ -80,140 +58,108 @@ jobs:
           fetch-depth: 1
           path: kernel
 
-      - name: Grep GPU validation & overclock variables
+      - name: Grep GPU validation
         working-directory: kernel
         run: |
-          echo "=== Cari MAX_GPU_FREQ ==="
-          grep -rn "MAX_GPU_FREQ" drivers/gpu/msm/ || echo "[INFO] MAX_GPU_FREQ tidak ditemukan"
-
+          echo "=== MAX_GPU_FREQ ==="
+          grep -rn "MAX_GPU_FREQ" drivers/gpu/msm/ || echo "[INFO] Not found"
           echo ""
-          echo "=== Cari overclock_gpu variable ==="
-          grep -rn "overclock_gpu\|overclock\.gpu" drivers/gpu/msm/ || echo "[INFO] overclock_gpu tidak ditemukan"
-
+          echo "=== overclock_gpu ==="
+          grep -rn "overclock_gpu" drivers/gpu/msm/ || echo "[INFO] Not found"
           echo ""
-          echo "=== Cari kgsl_pwrctrl.c gpu_freq ==="
-          grep -n "gpu_freq" drivers/gpu/msm/kgsl_pwrctrl.c | head -30 || true
+          echo "=== kgsl_pwrctrl.c gpu_freq ==="
+          grep -n "gpu_freq" drivers/gpu/msm/kgsl_pwrctrl.c | head -20 || true
 
-          echo ""
-          echo "=== Cari adreno.c overclock/gpu_freq ==="
-          grep -n "overclock\|gpu_freq" drivers/gpu/msm/adreno.c | head -30 || true
-
-      - name: Patch GPU OC - Hardcode overclock_gpu=1
+      - name: Patch adreno.c overclock_gpu
         if: github.event.inputs.oc_gpu == 'true'
         working-directory: kernel
         run: |
-          ADRENO_FILE="drivers/gpu/msm/adreno.c"
-          if grep -q "overclock_gpu" "$ADRENO_FILE"; then
-            echo "[INFO] overclock_gpu ditemukan, hardcode ke 1..."
-            cp "$ADRENO_FILE" "$ADRENO_FILE.bak"
-            sed -i 's/overclock_gpu\s*=\s*0/overclock_gpu = 1/g' "$ADRENO_FILE"
-            sed -i 's/overclock_gpu\s*=\s*false/overclock_gpu = true/g' "$ADRENO_FILE"
-            grep -n "overclock_gpu" "$ADRENO_FILE" | head -5
+          ADRENO="drivers/gpu/msm/adreno.c"
+          if grep -q "overclock_gpu" "$ADRENO"; then
+            cp "$ADRENO" "$ADRENO.bak"
+            sed -i 's/overclock_gpu\s*=\s*0/overclock_gpu = 1/g' "$ADRENO"
+            sed -i 's/overclock_gpu\s*=\s*false/overclock_gpu = true/g' "$ADRENO"
+            grep -n "overclock_gpu" "$ADRENO" | head -5
           else
-            echo "[WARN] overclock_gpu tidak ditemukan di adreno.c"
+            echo "[WARN] overclock_gpu not found in adreno.c"
           fi
 
-      - name: Patch GPU OC - Device Tree (speed bin 90)
+      - name: Patch GPU DT speed bin 90
         if: github.event.inputs.oc_gpu == 'true'
         working-directory: kernel
         run: |
-          DT_FILE="arch/arm64/boot/dts/qcom/sdm660-gpu.dtsi"
-
-          if [ ! -f "$DT_FILE" ]; then
-            echo "[WARN] $DT_FILE tidak ditemukan, cari alternatif..."
-            find arch/arm64/boot/dts/qcom/ -name "*gpu*" -type f
-            DT_FILE=$(find arch/arm64/boot/dts/qcom/ -name "*gpu*" -type f | head -1)
+          DT="arch/arm64/boot/dts/qcom/sdm660-gpu.dtsi"
+          if [ ! -f "$DT" ]; then
+            DT=$(find arch/arm64/boot/dts/qcom/ -name "*gpu*" -type f | head -1)
           fi
+          echo "[INFO] DT: $DT"
+          cp "$DT" "$DT.bak"
+          grep -n -A20 "qcom,speed-bin = <90>" "$DT" | head -30 || true
+          python3 -c "
+import re
+with open('$DT', 'r') as f:
+    c = f.read()
+pos = c.find('qcom,speed-bin = <90>')
+if pos == -1:
+    print('[WARN] speed-bin 90 not found')
+    exit(1)
+start = c.rfind('qcom,gpu-pwrlevels', 0, pos)
+end = c.find('};', pos)
+end = c.find('};', end + 1)
+block = c[start:end+2]
+block = block.replace('qcom,gpu-freq = <585000000>;', 'qcom,gpu-freq = <700000000>;')
+block = block.replace('qcom,gpu-freq = <588000000>;', 'qcom,gpu-freq = <700000000>;')
+c = c[:start] + block + c[end+2:]
+with open('$DT', 'w') as f:
+    f.write(c)
+print('[OK] Speed bin 90 patched to 700 MHz')
+"
+          grep -n -A20 "qcom,speed-bin = <90>" "$DT" | head -30 || true
 
-          echo "[INFO] Target DT: $DT_FILE"
-          cp "$DT_FILE" "$DT_FILE.bak"
-
-          echo "[INFO] DT sebelum patch (speed bin 90):"
-          grep -n -A25 "qcom,speed-bin = <90>" "$DT_FILE" | head -35 || true
-
-          python3 << 'PYEOF'
-          import re
-          dt_file = "arch/arm64/boot/dts/qcom/sdm660-gpu.dtsi"
-          with open(dt_file, 'r') as f:
-              content = f.read()
-
-          pos = content.find("qcom,speed-bin = <90>")
-          if pos == -1:
-              print("[WARN] speed-bin = <90> tidak ditemukan!")
-              exit(1)
-
-          start = content.rfind("qcom,gpu-pwrlevels", 0, pos)
-          end = content.find("};", pos)
-          end = content.find("};", end + 1)
-
-          block = content[start:end+2]
-          patched = block.replace("qcom,gpu-freq = <585000000>;", "qcom,gpu-freq = <700000000>;")
-          patched = patched.replace("qcom,gpu-freq = <588000000>;", "qcom,gpu-freq = <700000000>;")
-
-          content = content[:start] + patched + content[end+2:]
-          with open(dt_file, 'w') as f:
-              f.write(content)
-          print("[OK] Speed bin 90 patched -> 700 MHz")
-          PYEOF
-
-          echo ""
-          echo "[INFO] DT setelah patch (speed bin 90):"
-          grep -n -A25 "qcom,speed-bin = <90>" "$DT_FILE" | head -35 || true
-
-      - name: Patch GPU OC - Clock Driver
+      - name: Patch gpucc clock driver
         if: github.event.inputs.oc_gpu == 'true'
         working-directory: kernel
         run: |
-          CLK_FILE="drivers/clk/qcom/gpucc-sdm660.c"
-          if [ ! -f "$CLK_FILE" ]; then
-            find drivers/clk/qcom/ -name "*gpu*" -type f
-            CLK_FILE=$(find drivers/clk/qcom/ -name "*gpu*660*" -type f | head -1)
+          CLK="drivers/clk/qcom/gpucc-sdm660.c"
+          if [ ! -f "$CLK" ]; then
+            CLK=$(find drivers/clk/qcom/ -name "*gpu*660*" -type f | head -1)
           fi
-
-          echo "[INFO] Target: $CLK_FILE"
-          cp "$CLK_FILE" "$CLK_FILE.bak"
-
-          if grep -q "700000000" "$CLK_FILE"; then
-            echo "[INFO] 700 MHz sudah ada, skip"
+          echo "[INFO] CLK: $CLK"
+          cp "$CLK" "$CLK.bak"
+          if grep -q "700000000" "$CLK"; then
+            echo "[INFO] 700 MHz already present"
           else
-            python3 << 'PYEOF'
-            import re
-            clk_file = "drivers/clk/qcom/gpucc-sdm660.c"
-            with open(clk_file, 'r') as f:
-                content = f.read()
-
-            pattern = r'(F_GFX\(647000000,.*?\),)'
-            match = re.search(pattern, content)
-            if match:
-                insert_pos = match.end()
-                new_lines = "\n\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),"
-                content = content[:insert_pos] + new_lines + content[insert_pos:]
-                print("[OK] Inserted 700/750 MHz")
-            else:
-                pattern2 = r'(F_GFX\(588000000,.*?\),)'
-                match2 = re.search(pattern2, content)
-                if match2:
-                    insert_pos = match2.end()
-                    new_lines = "\n\tF_GFX(647000000, 0,  2, 0, 0,  930000000),\n\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),"
-                    content = content[:insert_pos] + new_lines + content[insert_pos:]
-                    print("[OK] Inserted 647/700/750 MHz")
-                else:
-                    print("[WARN] Anchor tidak ditemukan!")
-
-            with open(clk_file, 'w') as f:
-                f.write(content)
-            PYEOF
+            python3 -c "
+import re
+with open('$CLK', 'r') as f:
+    c = f.read()
+if '700000000' in c:
+    print('[INFO] Already has 700 MHz')
+else:
+    m = re.search(r'(F_GFX\(647000000,.*?\),)', c)
+    if m:
+        ins = m.end()
+        new = '\n\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),'
+        c = c[:ins] + new + c[ins:]
+        print('[OK] Inserted 700/750 MHz')
+    else:
+        m2 = re.search(r'(F_GFX\(588000000,.*?\),)', c)
+        if m2:
+            ins = m2.end()
+            new = '\n\tF_GFX(647000000, 0,  2, 0, 0,  930000000),\n\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),'
+            c = c[:ins] + new + c[ins:]
+            print('[OK] Inserted 647/700/750 MHz')
+        else:
+            print('[WARN] Anchor not found')
+    with open('$CLK', 'w') as f:
+        f.write(c)
+"
           fi
-
-          grep -n "F_GFX.*700000000" "$CLK_FILE" || echo "[WARN] 700 MHz belum ada!"
+          grep -n "700000000" "$CLK" || echo "[WARN] 700 MHz not found!"
 
       - name: Build kernel
         working-directory: kernel
         run: |
-          # Use system toolchain (much smaller, no need for huge prebuilt)
-          export PATH="$TC_DIR/bin:$PATH"
-
-          # Setup for kernel build with system clang + cross gcc
           export CC="clang"
           export CXX="clang++"
           export CROSS_COMPILE="aarch64-linux-gnu-"
@@ -227,36 +173,26 @@ jobs:
           make O=out ARCH=arm64 ${{ github.event.inputs.defconfig }}
 
           make O=out ARCH=arm64 \
-            CC="$CC" \
-            CXX="$CXX" \
+            CC="$CC" CXX="$CXX" \
             CROSS_COMPILE="$CROSS_COMPILE" \
             CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-            AR="$AR" \
-            NM="$NM" \
-            OBJCOPY="$OBJCOPY" \
-            STRIP="$STRIP" \
-            LD="$LD" \
+            AR="$AR" NM="$NM" \
+            OBJCOPY="$OBJCOPY" STRIP="$STRIP" LD="$LD" \
             -j$(nproc --all) 2>&1 | tee build.log
 
-      - name: Check build output & disk space
+      - name: Check build output
         working-directory: kernel
         run: |
-          echo "=== Disk space ==="
           df -h
-
           echo ""
-          echo "=== Build output ==="
           find out/ -name "Image*" -o -name "*.dtb" -o -name "dtbo.img" | head -20
           ls -lh out/arch/arm64/boot/ 2>/dev/null || true
-
-          echo ""
-          echo "=== Build errors ==="
           grep -i "error:" build.log | grep -v "warning treated as error" | head -10 || echo "No critical errors"
 
-      - name: Upload kernel artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ github.event.inputs.branch }}${{ github.event.inputs.oc_gpu == 'true' && '-gpu-oc' || '' }}${{ github.event.inputs.oc_cpu == 'true' && '-cpu-oc' || '' }}
+          name: kernel-${{ github.event.inputs.branch }}${{ github.event.inputs.oc_gpu == 'true' && '-gpu-oc' || '' }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/out/arch/arm64/boot/dtbo.img
@@ -271,11 +207,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Create AnyKernel3 zip (if AnyKernel3 exists)
+      - name: Create AnyKernel3 zip
         working-directory: kernel
         run: |
           if [ -d "AnyKernel3" ]; then
-            echo "[INFO] AnyKernel3 detected..."
             cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/ 2>/dev/null || true
             cp out/arch/arm64/boot/dtbo.img AnyKernel3/ 2>/dev/null || true
             cd AnyKernel3 && zip -r9 ../AnyKernel3.zip * -x .git README.md *placeholder* 2>/dev/null || true
@@ -283,7 +218,7 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Upload AnyKernel3 zip
+      - name: Upload AnyKernel3
         if: hashFiles('kernel/AnyKernel3.zip') != ''
         uses: actions/upload-artifact@v4
         with:
