@@ -4,107 +4,66 @@ on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig filename only (e.g. X00TD_defconfig)'
+        description: 'Defconfig path (relatif dari arch/arm64/configs/)'
         required: true
-        default: 'X00TD_defconfig'
+        default: 'vendor/asus/X00TD_defconfig'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     env:
       ARCH: arm64
       CC: clang
-      CLANG_TRIPLE: aarch64-linux-gnu-
       CROSS_COMPILE: aarch64-linux-gnu-
       CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-
+    
     steps:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
+          ref: tzy
           submodules: recursive
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex \
-            g++-multilib gcc-multilib git gnupg gperf \
-            imagemagick libncurses-dev lib32readline-dev \
-            lib32z1-dev liblz4-tool libssl-dev libxml2 \
-            libxml2-utils lzop pngcrush rsync schedtool \
-            squashfs-tools xsltproc zip zlib1g-dev \
-            binutils-aarch64-linux-gnu \
-            binutils-arm-linux-gnueabi \
-            clang llvm lld
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick libncurses-dev lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+          sudo apt-get install -y clang llvm lld
 
-      - name: Create output directory
-        run: mkdir -p out
-
-      - name: Prepare defconfig
+      - name: Debug - Check files
         run: |
-          echo "=== PWD ==="
-          pwd
-          echo "=== Root ls ==="
-          ls -la
-          echo "=== arch/arm64/configs ls ==="
-          ls arch/arm64/configs/ || echo "MISSING"
+          echo "=== Current branch ==="
+          git branch --show-current
+          echo "=== Defconfig exists? ==="
+          ls -la arch/arm64/configs/${{ github.event.inputs.defconfig }} || echo "FILE NOT FOUND!"
+          echo "=== Makefile exists? ==="
+          ls -la Makefile
+          echo "=== arch/arm64/configs contents ==="
+          ls -la arch/arm64/configs/
+          echo "=== vendor/asus contents ==="
+          ls -la arch/arm64/configs/vendor/asus/ || echo "DIR NOT FOUND!"
 
-          DEFCONFIG_NAME="${{ github.event.inputs.defconfig }}"
-          FLAT="arch/arm64/configs/${DEFCONFIG_NAME}"
-          VENDOR="arch/arm64/configs/vendor/asus/${DEFCONFIG_NAME}"
-
-          if [ -f "$FLAT" ]; then
-            echo "Already flat: $FLAT"
-          elif [ -f "$VENDOR" ]; then
-            echo "Found in vendor subdir, copying..."
-            cp "$VENDOR" "$FLAT"
-            echo "Copied to: $FLAT"
-          else
-            echo "Searching everywhere..."
-            FOUND=$(find . -name "$DEFCONFIG_NAME" 2>/dev/null | grep -v "./out/" | head -1)
-            if [ -z "$FOUND" ]; then
-              echo "ERROR: Not found! All defconfigs:"
-              find . -name "*defconfig*" 2>/dev/null | grep -v "./out/"
-              exit 1
-            fi
-            echo "Found at: $FOUND"
-            mkdir -p arch/arm64/configs
-            cp "$FOUND" "$FLAT"
-            echo "Copied to: $FLAT"
-          fi
+      - name: Prepare output directory
+        run: |
+          rm -rf out
+          mkdir -p out
 
       - name: Make defconfig
         run: |
-          make O=out \
-            ARCH=${{ env.ARCH }} \
-            CC=${{ env.CC }} \
-            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
-            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            CROSS_COMPILE_ARM32=${{ env.CROSS_COMPILE_ARM32 }} \
-            ${{ github.event.inputs.defconfig }}
+          cp arch/arm64/configs/${{ github.event.inputs.defconfig }} out/.config
+          make ARCH=${{ env.ARCH }} O=out olddefconfig
 
       - name: Build kernel
         run: |
-          make O=out \
-            ARCH=${{ env.ARCH }} \
-            CC=${{ env.CC }} \
-            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
-            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            CROSS_COMPILE_ARM32=${{ env.CROSS_COMPILE_ARM32 }} \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            -j$(nproc --all) 2>&1 | tee out/build.log
+          make ARCH=${{ env.ARCH }} O=out -j$(nproc --all)
 
       - name: Check build result
-        run: ls -la out/arch/arm64/boot/
+        run: |
+          ls -la out/arch/arm64/boot/
 
-      - name: Upload artifacts
+      - name: Upload Image.gz-dtb
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -113,11 +72,3 @@ jobs:
             out/arch/arm64/boot/Image.gz-dtb
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/dtbo.img
-            out/build.log
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log-failed-${{ github.run_id }}
-          path: out/build.log
