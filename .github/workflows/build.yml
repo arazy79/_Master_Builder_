@@ -36,7 +36,7 @@ jobs:
 
       - name: Make defconfig
         run: |
-          make O=out ARCH=${{ env.ARCH }} ${{ github.event.inputs.defconfig }}
+          make O=out ARCH=${{ env.ARCH }} KBUILD_DEFCONFIG=${{ github.event.inputs.defconfig }} defconfig
 
       - name: Build kernel
         run: |
