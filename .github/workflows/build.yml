@@ -6,7 +6,7 @@ on:
       defconfig:
         description: 'Defconfig path (relatif dari arch/arm64/configs/)'
         required: true
-        default: 'vendor/asus/X00TD_defconfig'
+        default: 'electroperf_defconfig'
 
 jobs:
   build:
@@ -22,8 +22,8 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/android_kernel_asus_sdm660_tiktod
-          ref: tzy
+          repository: arazy79/ElectroPerf-LTO
+          ref: X00TD-R-WIFI-STABLE_NetHunter
           path: kernel
           submodules: recursive
 
@@ -70,5 +70,3 @@ jobs:
           name: X00TD-kernel-${{ github.run_id }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
-            kernel/out/arch/arm64/boot/Image
-            kernel/out/arch/arm64/boot/dtbo.img
