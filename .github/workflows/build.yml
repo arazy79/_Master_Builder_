@@ -27,8 +27,8 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/SkyWalker_4.4
-          ref: r7/hmp
+          repository: arazy79/ElectroPerf-LTO
+          ref: X00TD-R-WIFI-STABLE_NetHunter
           submodules: recursive
           fetch-depth: 1
           path: kernel
