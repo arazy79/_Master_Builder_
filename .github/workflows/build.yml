@@ -27,7 +27,7 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: Tiktodz/android_kernel_asus_sdm636
+          repository: arazy79/android_kernel_asus_sdm636_tiktod
           ref: tzy
           submodules: recursive
           fetch-depth: 1
