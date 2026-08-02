@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04   # <-- GANTI INI
+    runs-on: ubuntu-24.04
     steps:
       - name: Free up disk space
         run: |
@@ -19,6 +19,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential curl flex git gnupg gperf \
             libelf-dev libncurses5-dev libssl-dev lz4 lld \
+            libdebuginfod1 \
             squashfs-tools xsltproc zip zlib1g-dev zstd \
             python3
 
