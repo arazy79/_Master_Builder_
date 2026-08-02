@@ -14,7 +14,7 @@ on:
       defconfig:
         description: "Defconfig file"
         required: true
-        default: "sdm660-perf_defconfig"
+        default: "X00TD_defconfig"
 
 env:
   ARCH: arm64
@@ -46,7 +46,7 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: RyuujiX/android_kernel_asus_sdm660
+          repository: arazy79/SkyWalker_4.4 
           ref: ${{ github.event.inputs.branch }}
           submodules: recursive
           fetch-depth: 1
@@ -117,13 +117,15 @@ jobs:
           tail -n 50 build.log
 
       - name: Upload kernel artifacts
-        if: hashFiles('kernel/out/arch/arm64/boot/Image.gz-dtb') != ''
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.safe_name.outputs.artifact_name }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
-            kernel/out/arch/arm64/boot/dtbo.img
+            kernel/out/arch/arm64/boot/Image.gz
             kernel/out/arch/arm64/boot/Image
+            kernel/out/arch/arm64/boot/dtbo.img
             kernel/build.log
+          if-no-files-found: warn
           retention-days: 7
