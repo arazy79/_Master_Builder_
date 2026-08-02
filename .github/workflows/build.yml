@@ -67,8 +67,9 @@ jobs:
         run: |
           echo "=== LAST 50 LINES ==="
           tail -n 50 build.log
-          
-           - name: Create flashable zip
+
+      - name: Create flashable zip
+        if: always()
         working-directory: kernel
         run: |
           git clone --depth=1 https://github.com/ElectroPerf/AnyKernel3-X00TD.git -b ElectroPerf-R-Wifi AnyKernel3
@@ -79,6 +80,7 @@ jobs:
           cd ..
 
       - name: Upload flashable zip
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: electroperf-x00td-zip
