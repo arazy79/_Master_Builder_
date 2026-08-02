@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig path'
+        description: 'Defconfig path (relatif dari arch/arm64/configs/)'
         required: true
         default: 'vendor/asus/X00TD_defconfig'
 
@@ -31,12 +31,15 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
           sudo apt-get install -y clang llvm lld
 
-      - name: Create output directory
-        run: mkdir -p out
+      - name: Prepare output directory
+        run: |
+          rm -rf out
+          mkdir -p out
 
       - name: Make defconfig
         run: |
-          make O=out ARCH=${{ env.ARCH }} KBUILD_DEFCONFIG=${{ github.event.inputs.defconfig }} defconfig
+          cp arch/arm64/configs/${{ github.event.inputs.defconfig }} out/.config
+          make O=out ARCH=${{ env.ARCH }} olddefconfig
 
       - name: Build kernel
         run: |
