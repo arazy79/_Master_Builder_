@@ -1,11 +1,11 @@
-name: Build ElectroPerf X00TD (Eva GCC)
+name: Build Tiktodz X00TD Kernel
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Free up disk space
         run: |
@@ -13,26 +13,22 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/swift
           sudo apt-get clean
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential curl flex git gnupg gperf \
-            libelf-dev libncurses5-dev libssl-dev lz4 lld \
-            libdebuginfod1 \
+            libelf-dev libncurses5-dev libssl-dev lz4 \
             squashfs-tools xsltproc zip zlib1g-dev zstd \
-            python3
-
-      - name: Clone Eva GCC toolchain
-        run: |
-          git clone --depth=1 https://github.com/mvaisakh/gcc-arm64.git -b gcc-master ~/gcc-arm64
-          git clone --depth=1 https://github.com/mvaisakh/gcc-arm.git -b gcc-master ~/gcc-arm
+            python3 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
 
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/ElectroPerf-LTO
-          ref: X00TD-R-WIFI-STABLE_NetHunter
+          repository: Tiktodz/android_kernel_asus_sdm636
+          ref: tzy
           submodules: recursive
           fetch-depth: 1
           path: kernel
@@ -40,59 +36,29 @@ jobs:
       - name: Build kernel
         working-directory: kernel
         run: |
-          export PATH=~/gcc-arm64/bin:~/gcc-arm/bin:$PATH
-          export CROSS_COMPILE="aarch64-elf-"
-          export CROSS_COMPILE_ARM32="arm-eabi-"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CROSS_COMPILE_ARM32="arm-linux-gnueabi-"
           export ARCH="arm64"
           export SUBARCH="arm64"
-          export LD=ld.lld
 
-          make O=out electroperf_defconfig
+          make O=out X00TD_defconfig
           make O=out -j$(nproc --all) 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
       - name: Check build output
         working-directory: kernel
         run: |
-          echo "=== BUILD OUTPUT ==="
-          ls -lh out/arch/arm64/boot/ 2>/dev/null || echo "NO OUTPUT"
-          
+          ls -lh out/arch/arm64/boot/
           if [ ! -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
             echo "ERROR: No kernel image found!"
             exit 1
           fi
 
-      - name: Print last 50 lines of build log
-        if: always()
-        working-directory: kernel
-        run: |
-          echo "=== LAST 50 LINES ==="
-          tail -n 50 build.log
-
-      - name: Create flashable zip
-        if: always()
-        working-directory: kernel
-        run: |
-          git clone --depth=1 https://github.com/ElectroPerf/AnyKernel3-X00TD.git -b ElectroPerf-R-Wifi AnyKernel3
-          cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          cd AnyKernel3
-          sed -i 's/kernel.string=.*/kernel.string=ElectroPerf-X00TD-Custom/g' anykernel.sh
-          zip -r9 ../ElectroPerf-X00TD.zip * -x .git README.md anykernel-real.sh .gitignore zipsigner* *.zip
-          cd ..
-
-      - name: Upload flashable zip
+      - name: Upload kernel
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electroperf-x00td-zip
-          path: kernel/ElectroPerf-X00TD.zip
-          retention-days: 7
-
-      - name: Upload kernel artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electroperf-x00td
+          name: tiktodz-x00td
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/build.log
