@@ -44,22 +44,35 @@ jobs:
 
       - name: Prepare defconfig
         run: |
-          DEFCONFIG_NAME="${{ github.event.inputs.defconfig }}"
-          DEFCONFIG_DEST="arch/arm64/configs/${DEFCONFIG_NAME}"
+          echo "=== PWD ==="
+          pwd
+          echo "=== Root ls ==="
+          ls -la
+          echo "=== arch/arm64/configs ls ==="
+          ls arch/arm64/configs/ || echo "MISSING"
 
-          if [ ! -f "$DEFCONFIG_DEST" ]; then
-            echo "Not found at flat location, searching subdirs..."
-            FOUND=$(find arch/arm64/configs -name "$DEFCONFIG_NAME" | head -1)
+          DEFCONFIG_NAME="${{ github.event.inputs.defconfig }}"
+          FLAT="arch/arm64/configs/${DEFCONFIG_NAME}"
+          VENDOR="arch/arm64/configs/vendor/asus/${DEFCONFIG_NAME}"
+
+          if [ -f "$FLAT" ]; then
+            echo "Already flat: $FLAT"
+          elif [ -f "$VENDOR" ]; then
+            echo "Found in vendor subdir, copying..."
+            cp "$VENDOR" "$FLAT"
+            echo "Copied to: $FLAT"
+          else
+            echo "Searching everywhere..."
+            FOUND=$(find . -name "$DEFCONFIG_NAME" 2>/dev/null | grep -v "./out/" | head -1)
             if [ -z "$FOUND" ]; then
-              echo "ERROR: $DEFCONFIG_NAME not found! Available defconfigs:"
-              find arch/arm64/configs -name "*defconfig*"
+              echo "ERROR: Not found! All defconfigs:"
+              find . -name "*defconfig*" 2>/dev/null | grep -v "./out/"
               exit 1
             fi
             echo "Found at: $FOUND"
-            cp "$FOUND" "$DEFCONFIG_DEST"
-            echo "Copied to: $DEFCONFIG_DEST"
-          else
-            echo "Already at flat location: $DEFCONFIG_DEST"
+            mkdir -p arch/arm64/configs
+            cp "$FOUND" "$FLAT"
+            echo "Copied to: $FLAT"
           fi
 
       - name: Make defconfig
