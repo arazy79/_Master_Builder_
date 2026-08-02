@@ -1,4 +1,4 @@
-name: Build Tiktodz X00TD Kernel
+name: Build Tiktodz X00TD Kernel (Patched)
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/android_kernel_asus_sdm636_tiktod
+          repository: arazy79/android_kernel_asus_sdm660_tiktod   # <-- FIX: sdm660, bukan sdm636
           ref: tzy
           submodules: recursive
           fetch-depth: 1
@@ -48,7 +48,9 @@ jobs:
       - name: Check build output
         working-directory: kernel
         run: |
+          echo "=== BUILD OUTPUT ==="
           ls -lh out/arch/arm64/boot/
+          
           if [ ! -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
             echo "ERROR: No kernel image found!"
             exit 1
@@ -58,7 +60,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tiktodz-x00td
+          name: tiktodz-x00td-patched
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/build.log
