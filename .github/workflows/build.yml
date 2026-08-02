@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig path (relative to arch/arm64/configs/)'
+        description: 'Defconfig filename only (e.g. X00TD_defconfig)'
         required: true
-        default: 'vendor/asus/X00TD_defconfig'
+        default: 'X00TD_defconfig'
 
 jobs:
   build:
@@ -41,6 +41,26 @@ jobs:
 
       - name: Create output directory
         run: mkdir -p out
+
+      - name: Prepare defconfig
+        run: |
+          DEFCONFIG_NAME="${{ github.event.inputs.defconfig }}"
+          DEFCONFIG_DEST="arch/arm64/configs/${DEFCONFIG_NAME}"
+
+          if [ ! -f "$DEFCONFIG_DEST" ]; then
+            echo "Not found at flat location, searching subdirs..."
+            FOUND=$(find arch/arm64/configs -name "$DEFCONFIG_NAME" | head -1)
+            if [ -z "$FOUND" ]; then
+              echo "ERROR: $DEFCONFIG_NAME not found! Available defconfigs:"
+              find arch/arm64/configs -name "*defconfig*"
+              exit 1
+            fi
+            echo "Found at: $FOUND"
+            cp "$FOUND" "$DEFCONFIG_DEST"
+            echo "Copied to: $DEFCONFIG_DEST"
+          else
+            echo "Already at flat location: $DEFCONFIG_DEST"
+          fi
 
       - name: Make defconfig
         run: |
@@ -81,3 +101,10 @@ jobs:
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/dtbo.img
             out/build.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-failed-${{ github.run_id }}
+          path: out/build.log
