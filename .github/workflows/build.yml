@@ -11,13 +11,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     env:
       ARCH: arm64
       CC: clang
       CROSS_COMPILE: aarch64-linux-gnu-
       CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-    
+
     steps:
       - name: Checkout kernel source
         uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
           cp arch/arm64/configs/${{ github.event.inputs.defconfig }} out/.config
           make ARCH=${{ env.ARCH }} O=out olddefconfig
 
-            - name: Build kernel
+      - name: Build kernel
         working-directory: kernel
         run: |
           make ARCH=${{ env.ARCH }} O=out KCFLAGS="-Wno-error -Wno-error=enum-int-mismatch -Wno-error=incompatible-pointer-types -Wno-error=address -Wno-error=array-compare -Wno-error=stringop-overread -Wno-error=unused-value -Wno-error=misleading-indentation -Wno-error=bool-compare -Wno-error=unused-variable -Wno-error=builtin-declaration-mismatch -Wno-error=array-parameter -Wno-error=shadow" -j$(nproc --all)
