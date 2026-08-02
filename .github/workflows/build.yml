@@ -2,23 +2,6 @@ name: Build SDM660 Kernel (GCC)
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to build (e.g., r9/hmp)"
-        required: true
-        default: "r9/hmp"
-      oc_gpu:
-        description: "Enable GPU OC 700MHz?"
-        required: true
-        default: "true"
-      defconfig:
-        description: "Defconfig file"
-        required: true
-        default: "X00TD_defconfig"
-
-env:
-  ARCH: arm64
-  SUBARCH: arm64
 
 jobs:
   build:
@@ -29,7 +12,6 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY"
           sudo rm -rf /usr/local/lib/android /usr/share/swift
           sudo apt-get clean
-          df -h
 
       - name: Install GCC toolchain
         run: |
@@ -41,58 +23,15 @@ jobs:
             python3 \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
             binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-          aarch64-linux-gnu-gcc --version
 
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/SkyWalker_4.4 
-          ref: ${{ github.event.inputs.branch }}
+          repository: arazy79/SkyWalker_4.4
+          ref: r9/hmp
           submodules: recursive
           fetch-depth: 1
           path: kernel
-
-      - name: Set safe artifact name
-        id: safe_name
-        run: |
-          BRANCH="${{ github.event.inputs.branch }}"
-          SAFE_BRANCH=$(echo "$BRANCH" | sed 's/\//-/g')
-          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
-          if [ "${{ github.event.inputs.oc_gpu }}" == "true" ]; then
-            echo "artifact_name=kernel-${SAFE_BRANCH}-gpu-oc" >> $GITHUB_OUTPUT
-          else
-            echo "artifact_name=kernel-${SAFE_BRANCH}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Patch GPU DT speed bin 90
-        if: github.event.inputs.oc_gpu == 'true'
-        working-directory: kernel
-        run: |
-          DT="arch/arm64/boot/dts/qcom/sdm660-gpu.dtsi"
-          [ ! -f "$DT" ] && DT=$(find arch/arm64/boot/dts/qcom/ -name "*gpu*" -type f | head -1)
-          echo "DT: $DT"
-          cp "$DT" "$DT.bak"
-          sed -i '/qcom,speed-bin = <90>/,/qcom,gpu-pwrlevel@5/{s/585000000/700000000/g; s/588000000/700000000/g}' "$DT"
-          grep -n 'qcom,gpu-freq' "$DT" | head -15
-
-      - name: Patch gpucc clock driver
-        if: github.event.inputs.oc_gpu == 'true'
-        working-directory: kernel
-        run: |
-          CLK="drivers/clk/qcom/gpucc-sdm660.c"
-          [ ! -f "$CLK" ] && CLK=$(find drivers/clk/qcom/ -name "*gpu*660*" -type f | head -1)
-          echo "CLK: $CLK"
-          cp "$CLK" "$CLK.bak"
-          if grep -q "700000000" "$CLK"; then
-            echo "700 MHz already present"
-          else
-            if grep -q "647000000" "$CLK"; then
-              sed -i '/F_GFX(647000000,.*),/a\\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),' "$CLK"
-            elif grep -q "588000000" "$CLK"; then
-              sed -i '/F_GFX(588000000,.*),/a\\tF_GFX(647000000, 0,  2, 0, 0,  930000000),\n\\tF_GFX(700000000, 0,  2, 0, 0, 1170000000),\n\\tF_GFX(750000000, 0,  2, 0, 0, 1170000000),' "$CLK"
-            fi
-          fi
-          grep -n "700000000" "$CLK" || echo "WARN: 700 MHz not found"
 
       - name: Build kernel with GCC
         working-directory: kernel
@@ -102,12 +41,20 @@ jobs:
           export ARCH="arm64"
           export SUBARCH="arm64"
 
-          make O=out ${{ github.event.inputs.defconfig }}
+          make O=out X00TD_defconfig
           make O=out -j$(nproc --all) 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
 
+      - name: Check build output
+        working-directory: kernel
+        run: |
           echo "=== BUILD OUTPUT ==="
           ls -lh out/arch/arm64/boot/ 2>/dev/null || echo "NO OUTPUT"
-          find out/ -name "Image*" -o -name "*.dtb" -o -name "dtbo.img" 2>/dev/null | head -20
+          
+          if [ ! -f "out/arch/arm64/boot/Image" ] && [ ! -f "out/arch/arm64/boot/Image.gz" ] && [ ! -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
+            echo "ERROR: No kernel image found!"
+            exit 1
+          fi
 
       - name: Print last 50 lines of build log
         if: always()
@@ -120,12 +67,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.safe_name.outputs.artifact_name }}
+          name: kernel-r9-hmp
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/out/arch/arm64/boot/Image.gz
             kernel/out/arch/arm64/boot/Image
             kernel/out/arch/arm64/boot/dtbo.img
             kernel/build.log
-          if-no-files-found: warn
           retention-days: 7
