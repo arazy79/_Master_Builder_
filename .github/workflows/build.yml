@@ -59,8 +59,9 @@ jobs:
       - name: Make defconfig
         working-directory: kernel
         run: |
-          make ARCH=${{ env.ARCH }} O=out ${{ github.event.inputs.defconfig }}
-
+          cp arch/arm64/configs/vendor/asus/X00TD_defconfig out/.config
+          make ARCH=${{ env.ARCH }} O=out olddefconfig
+          
       - name: Build kernel
         working-directory: kernel
         run: |
