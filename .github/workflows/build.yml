@@ -1,72 +1,33 @@
-name: Kernel Build X00TD
-
-on:
-  workflow_dispatch:
-    inputs:
-      defconfig:
-        description: 'Defconfig path (relatif dari arch/arm64/configs/)'
-        required: true
-        default: 'X00TD_defconfig'
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    env:
-      ARCH: arm64
-      CC: clang
-      CROSS_COMPILE: aarch64-linux-gnu-
-      CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-
-    steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          repository: arazy79/android_kernel_asus_sdm660-4.19
-          ref: lineage-23.2
-          path: kernel
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick libncurses-dev lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
-          sudo apt-get install -y clang llvm lld
-
-      - name: Debug - Check files
-        run: |
-          echo "=== Kernel directory contents ==="
-          ls -la kernel/
-          echo "=== Defconfig exists? ==="
-          ls -la kernel/arch/arm64/configs/vendor/asus/${{ github.event.inputs.defconfig }} || echo "FILE NOT FOUND!"
-          echo "=== All defconfigs ==="
-          ls -la kernel/arch/arm64/configs/
-
-      - name: Prepare output directory
-        run: |
-          rm -rf kernel/out
-          mkdir -p kernel/out
-
-      - name: Make defconfig
+      - name: Build DTB + Image.gz-dtb
         working-directory: kernel
         run: |
-          cp arch/arm64/configs/vendor/asus/${{ github.event.inputs.defconfig }} out/.config
-          yes "" | make ARCH=${{ env.ARCH }} O=out oldconfig
-
-      - name: Build kernel
-        working-directory: kernel
-        run: |
-          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" CROSS_COMPILE_ARM32="${{ env.CROSS_COMPILE_ARM32 }}" KCFLAGS="-Wno-error" -j2
-
-      - name: Check build result
-        run: |
-          ls -la kernel/out/arch/arm64/boot/
-
-      - name: Upload Image.gz-dtb
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: X00TD-kernel-${{ github.run_id }}
-          path: |
-            kernel/out/arch/arm64/boot/Image.gz-dtb
+          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" dtbs
+          echo "=== All DTB files ==="
+          find out/arch/arm64/boot/dts -name "*.dtb" | sort
+          
+          # Cari DTB untuk X00TD (vendor/qcom/ dulu, baru qcom/)
+          DTB=$(find out/arch/arm64/boot/dts/vendor/qcom -maxdepth 1 -iname "*x00td*.dtb" | head -1)
+          
+          if [ -z "$DTB" ]; then
+            DTB=$(find out/arch/arm64/boot/dts/vendor/qcom -maxdepth 1 -name "sdm636.dtb" | head -1)
+          fi
+          
+          if [ -z "$DTB" ]; then
+            DTB=$(find out/arch/arm64/boot/dts/vendor/qcom -maxdepth 1 -name "sdm660.dtb" | head -1)
+          fi
+          
+          # Fallback ke qcom/ kalau vendor/ kosong
+          if [ -z "$DTB" ]; then
+            DTB=$(find out/arch/arm64/boot/dts/qcom -maxdepth 1 -name "sdm636.dtb" | head -1)
+          fi
+          
+          if [ -z "$DTB" ]; then
+            echo "ERROR: No DTB found! Available DTBs:"
+            find out/arch/arm64/boot/dts -name "*.dtb"
+            exit 1
+          fi
+          
+          echo "Using DTB: $DTB"
+          cat out/arch/arm64/boot/Image.gz "$DTB" > out/arch/arm64/boot/Image.gz-dtb
+          echo "=== Size check ==="
+          ls -lh out/arch/arm64/boot/Image.gz out/arch/arm64/boot/Image.gz-dtb
