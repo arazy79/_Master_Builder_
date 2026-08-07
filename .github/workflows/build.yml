@@ -65,7 +65,7 @@ jobs:
       - name: Build kernel
         working-directory: kernel
         run: |
-          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" CROSS_COMPILE_ARM32="${{ env.CROSS_COMPILE_ARM32 }}" AR="${{ env.AR }}" NM="${{ env.NM }}" OBJCOPY="${{ env.OBJCOPY }}" OBJDUMP="${{ env.OBJDUMP }}" STRIP="${{ env.STRIP }}" LD="${{ env.LD }}" KCFLAGS="-Wno-error -Wno-error=enum-int-mismatch -Wno-error=incompatible-pointer-types -Wno-error=address -Wno-error=array-compare -Wno-error=stringop-overread -Wno-error=unused-value -Wno-error=misleading-indentation -Wno-error=bool-compare -Wno-error=unused-variable -Wno-error=builtin-declaration-mismatch -Wno-error=array-parameter -Wno-error=shadow" -j$(nproc --all)
+          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" CROSS_COMPILE_ARM32="${{ env.CROSS_COMPILE_ARM32 }}" AR="${{ env.AR }}" NM="${{ env.NM }}" OBJCOPY="${{ env.OBJCOPY }}" OBJDUMP="${{ env.OBJDUMP }}" STRIP="${{ env.STRIP }}" LD="${{ env.LD }}" KCFLAGS="-Wno-error"
 
       - name: Build DTB + Image.gz-dtb
         working-directory: kernel
