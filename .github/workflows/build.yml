@@ -1,12 +1,16 @@
-name: Kernel Build X00TD
+name: Kernel Build X00TD A16
 
 on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig path (relatif dari arch/arm64/configs/)'
+        description: 'Defconfig name (contoh: x00td_defconfig)'
         required: true
-        default: 'electroperf_defconfig'
+        default: 'x00td_defconfig'
+      branch:
+        description: 'Branch repo'
+        required: true
+        default: 'lineage-23.2'
 
 jobs:
   build:
@@ -17,13 +21,19 @@ jobs:
       CC: clang
       CROSS_COMPILE: aarch64-linux-gnu-
       CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+      AR: llvm-ar
+      NM: llvm-nm
+      OBJCOPY: llvm-objcopy
+      OBJDUMP: llvm-objdump
+      STRIP: llvm-strip
+      LD: ld.lld
 
     steps:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/ElectroPerf-LTO
-          ref: X00TD-R-WIFI-STABLE_NetHunter
+          repository: arazy79/android_kernel_asus_sdm660-4.19
+          ref: ${{ github.event.inputs.branch }}
           path: kernel
           submodules: recursive
 
@@ -36,12 +46,10 @@ jobs:
 
       - name: Debug - Check files
         run: |
-          echo "=== Kernel directory contents ==="
-          ls -la kernel/
           echo "=== Defconfig exists? ==="
           ls -la kernel/arch/arm64/configs/${{ github.event.inputs.defconfig }} || echo "FILE NOT FOUND!"
-          echo "=== vendor/asus contents ==="
-          ls -la kernel/arch/arm64/configs/vendor/asus/ || echo "DIR NOT FOUND!"
+          echo "=== All defconfigs ==="
+          ls -la kernel/arch/arm64/configs/
 
       - name: Prepare output directory
         run: |
@@ -51,22 +59,34 @@ jobs:
       - name: Make defconfig
         working-directory: kernel
         run: |
-          cp arch/arm64/configs/${{ github.event.inputs.defconfig }} out/.config
-          make ARCH=${{ env.ARCH }} O=out olddefconfig
+          make ARCH=${{ env.ARCH }} O=out ${{ github.event.inputs.defconfig }}
 
       - name: Build kernel
         working-directory: kernel
         run: |
-          make ARCH=${{ env.ARCH }} O=out KCFLAGS="-Wno-error -Wno-error=enum-int-mismatch -Wno-error=incompatible-pointer-types -Wno-error=address -Wno-error=array-compare -Wno-error=stringop-overread -Wno-error=unused-value -Wno-error=misleading-indentation -Wno-error=bool-compare -Wno-error=unused-variable -Wno-error=builtin-declaration-mismatch -Wno-error=array-parameter -Wno-error=shadow" -j$(nproc --all)
+          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" CROSS_COMPILE_ARM32="${{ env.CROSS_COMPILE_ARM32 }}" AR="${{ env.AR }}" NM="${{ env.NM }}" OBJCOPY="${{ env.OBJCOPY }}" OBJDUMP="${{ env.OBJDUMP }}" STRIP="${{ env.STRIP }}" LD="${{ env.LD }}" KCFLAGS="-Wno-error -Wno-error=enum-int-mismatch -Wno-error=incompatible-pointer-types -Wno-error=address -Wno-error=array-compare -Wno-error=stringop-overread -Wno-error=unused-value -Wno-error=misleading-indentation -Wno-error=bool-compare -Wno-error=unused-variable -Wno-error=builtin-declaration-mismatch -Wno-error=array-parameter -Wno-error=shadow" -j$(nproc --all)
+
+      - name: Build DTB + Image.gz-dtb
+        working-directory: kernel
+        run: |
+          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" dtbs
+          cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/sdm636.dtb > out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || \
+          cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/sdm660.dtb > out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || \
+          echo "Check DTB path manually"
 
       - name: Check build result
         run: |
-          ls -la kernel/out/arch/arm64/boot/
+          echo "=== Boot files ==="
+          ls -la kernel/out/arch/arm64/boot/ || true
+          echo "=== DTB files ==="
+          find kernel/out/arch/arm64/boot/dts -name "*.dtb" 2>/dev/null || true
 
       - name: Upload Image.gz-dtb
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: X00TD-kernel-${{ github.run_id }}
+          name: X00TD-kernel-${{ github.run_id }}-${{ github.event.inputs.defconfig }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
+            kernel/out/arch/arm64/boot/Image.gz
+            kernel/out/arch/arm64/boot/Image
