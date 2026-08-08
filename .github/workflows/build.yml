@@ -97,6 +97,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: X00TD-kernel-${{ github.run_id }}
+          name: Kernel-Build-X00TD-4.19-${{ github.run_id }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
