@@ -22,8 +22,8 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/android_kernel_asus_sdm660-4.19
-          ref: lineage-23.2
+          repository: arazy79/android_kernel_asus_sdm660-4.19_skywalker
+          ref: r2/s
           path: kernel
           submodules: recursive
 
