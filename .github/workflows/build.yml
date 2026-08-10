@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig name (contoh: x00td_defconfig)'
+        description: 'Defconfig (contoh: asus/X00TD_defconfig)'
         required: true
-        default: 'x00td_defconfig'
+        default: 'asus/X00TD_defconfig'
       branch:
         description: 'Branch repo'
         required: true
@@ -15,79 +15,165 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     env:
       ARCH: arm64
-      CC: clang
       CROSS_COMPILE: aarch64-linux-gnu-
       CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-      AR: llvm-ar
-      NM: llvm-nm
-      OBJCOPY: llvm-objcopy
-      OBJDUMP: llvm-objdump
-      STRIP: llvm-strip
-      LD: ld.lld
 
     steps:
+      # ──────────────────────────────────────────────
+      # 1. CHECKOUT
+      # ──────────────────────────────────────────────
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: arazy79/x00td_kernel_4.19_broken
+          repository: arazy79/x00td_kernel_4.19_broken   # ← FIXED
           ref: ${{ github.event.inputs.branch }}
           path: kernel
           submodules: recursive
 
+      # ──────────────────────────────────────────────
+      # 2. CACHE ccache (hemat waktu build berikutnya)
+      # ──────────────────────────────────────────────
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ github.event.inputs.branch }}-${{ github.event.inputs.defconfig }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ github.event.inputs.branch }}-${{ github.event.inputs.defconfig }}-
+            ccache-${{ github.event.inputs.branch }}-
+
+      # ──────────────────────────────────────────────
+      # 3. INSTALL DEPS  (clang-17 explicit, bukan clang random)
+      # ──────────────────────────────────────────────
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick libncurses-dev lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
-          sudo apt-get install -y clang llvm lld
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache flex git \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            libncurses-dev libssl-dev \
+            clang-17 llvm-17 lld-17
 
-      - name: Debug - Check files
+          # Tambah LLVM-17 ke PATH → semua tool (clang, ld.lld, llvm-ar, ...) pakai versi 17
+          echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
+
+      - name: Configure ccache
         run: |
-          echo "=== Defconfig exists? ==="
-          ls -la kernel/arch/arm64/configs/${{ github.event.inputs.defconfig }} || echo "FILE NOT FOUND!"
-          echo "=== All defconfigs ==="
-          ls -la kernel/arch/arm64/configs/
+          ccache --max-size=2G
+          ccache --zero-stats
 
-      - name: Prepare output directory
+      # ──────────────────────────────────────────────
+      # 4. DEBUG  (cek defconfig SAMA persis dengan yang dipakai build)
+      # ──────────────────────────────────────────────
+      - name: Debug - Check defconfig
         run: |
-          rm -rf kernel/out
-          mkdir -p kernel/out
+          echo "Branch   : ${{ github.event.inputs.branch }}"
+          echo "Defconfig: ${{ github.event.inputs.defconfig }}"
+          echo ""
+          echo "=== Target file ==="
+          ls -la "kernel/arch/arm64/configs/${{ github.event.inputs.defconfig }}" \
+            || echo "❌ FILE NOT FOUND!"
+          echo ""
+          echo "=== All defconfigs di repo ==="
+          find kernel/arch/arm64/configs -name "*defconfig*" | sort
 
+      # ──────────────────────────────────────────────
+      # 5. DEFCONFIG
+      # ──────────────────────────────────────────────
       - name: Make defconfig
         working-directory: kernel
         run: |
-          cp arch/arm64/configs/asus/X00TD_defconfig out/.config
-          make ARCH=${{ env.ARCH }} O=out olddefconfig
-          
-      - name: Build kernel
+          make -j$(nproc) \
+            ARCH=arm64 \
+            O=out \
+            CC="ccache clang" \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            CROSS_COMPILE_ARM32=${{ env.CROSS_COMPILE_ARM32 }} \
+            ${{ github.event.inputs.defconfig }}   # ← pakai input, konsisten
+
+      # ──────────────────────────────────────────────
+      # 6. BUILD  (Image.gz + dtbs dalam 1 make, -j full core)
+      # ──────────────────────────────────────────────
+      - name: Build kernel (Image.gz + dtbs)
         working-directory: kernel
         run: |
-          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" CROSS_COMPILE_ARM32="${{ env.CROSS_COMPILE_ARM32 }}" AR="${{ env.AR }}" NM="${{ env.NM }}" OBJCOPY="${{ env.OBJCOPY }}" OBJDUMP="${{ env.OBJDUMP }}" STRIP="${{ env.STRIP }}" LD="${{ env.LD }}" KCFLAGS="-Wno-error"
+          make -j$(nproc) \
+            ARCH=arm64 \
+            O=out \
+            CC="ccache clang" \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            CROSS_COMPILE_ARM32=${{ env.CROSS_COMPILE_ARM32 }} \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            LD=ld.lld \
+            KCFLAGS="-Wno-error" \
+            Image.gz dtbs   # ← hanya target yang dibutuhkan, skip modules
 
-      - name: Build DTB + Image.gz-dtb
+      # ──────────────────────────────────────────────
+      # 7. PACK Image.gz-dtb
+      # ──────────────────────────────────────────────
+      - name: Pack Image.gz-dtb
         working-directory: kernel
         run: |
-          make ARCH=${{ env.ARCH }} O=out CC="${{ env.CC }}" CROSS_COMPILE="${{ env.CROSS_COMPILE }}" dtbs
-          cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/sdm636.dtb > out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || \
-          cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/sdm660.dtb > out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || \
-          echo "Check DTB path manually"
+          # Cari DTB: prioritas sdm636 dulu (X00TD), fallback sdm660
+          DTB_PATH=""
+          for dtb in \
+            out/arch/arm64/boot/dts/qcom/sdm636-mtp.dtb \
+            out/arch/arm64/boot/dts/qcom/sdm636.dtb \
+            out/arch/arm64/boot/dts/qcom/sdm660-mtp.dtb \
+            out/arch/arm64/boot/dts/qcom/sdm660.dtb; do
+            if [ -f "$dtb" ]; then
+              DTB_PATH="$dtb"
+              break
+            fi
+          done
 
-      - name: Check build result
+          if [ -n "$DTB_PATH" ]; then
+            cat out/arch/arm64/boot/Image.gz "$DTB_PATH" \
+              > out/arch/arm64/boot/Image.gz-dtb
+            echo "✅ Packed: Image.gz + $DTB_PATH → Image.gz-dtb"
+          else
+            echo "⚠️ Tidak ada DTB cocok. DTB yang ada:"
+            find out/arch/arm64/boot/dts/qcom -name "sdm*.dtb" 2>/dev/null | head -20
+          fi
+
+      # ──────────────────────────────────────────────
+      # 8. SUMMARY
+      # ──────────────────────────────────────────────
+      - name: Build summary
+        if: always()   # ← always, bukan success
         run: |
           echo "=== Boot files ==="
-          ls -la kernel/out/arch/arm64/boot/ || true
-          echo "=== DTB files ==="
-          find kernel/out/arch/arm64/boot/dts -name "*.dtb" 2>/dev/null || true
+          ls -lh kernel/out/arch/arm64/boot/ 2>/dev/null || echo "(kosong)"
+          echo ""
+          echo "=== sdm*.dtb yang ditemukan ==="
+          find kernel/out/arch/arm64/boot/dts/qcom -name "sdm*.dtb" 2>/dev/null \
+            | head -20 || echo "(tidak ada)"
+          echo ""
+          echo "=== ccache stats ==="
+          ccache --show-stats
 
-      - name: Upload Image.gz-dtb
-        if: success()
+      # ──────────────────────────────────────────────
+      # 9. UPLOAD  (if: always → artifact tetap ada meski build gagal)
+      # ──────────────────────────────────────────────
+      - name: Upload artifacts
+        if: always()   # ← FIXED: bukan success()
         uses: actions/upload-artifact@v4
         with:
-          name: 4.19-broken-${{ github.run_id }}-${{ github.event.inputs.defconfig }}
+          name: broken-${{ github.event.inputs.branch }}-${{ github.run_id }}
           path: |
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel/out/arch/arm64/boot/Image.gz
             kernel/out/arch/arm64/boot/Image
+          if-no-files-found: warn   # warn, bukan error → log tetap readable
