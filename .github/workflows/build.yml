@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       defconfig:
-        description: 'Defconfig (contoh: asus/X00TD_defconfig)'
+        description: 'Nama file defconfig (contoh: X00TD_defconfig) — path auto-detect'
         required: true
-        default: 'asus/X00TD_defconfig'
+        default: 'X00TD_defconfig'
       branch:
         description: 'Branch repo'
         required: true
@@ -74,11 +74,15 @@ jobs:
           echo "Branch   : ${{ github.event.inputs.branch }}"
           echo "Defconfig: ${{ github.event.inputs.defconfig }}"
           echo ""
-          echo "=== Target file ==="
-          ls -la "kernel/arch/arm64/configs/${{ github.event.inputs.defconfig }}" \
-            || echo "❌ FILE NOT FOUND!"
+          echo "=== Auto-detect hasil ==="
+          FOUND=$(find kernel/arch/arm64/configs -name "${{ github.event.inputs.defconfig }}" | head -1)
+          if [ -n "$FOUND" ]; then
+            echo "✅ Ditemukan: $FOUND"
+          else
+            echo "❌ TIDAK DITEMUKAN: ${{ github.event.inputs.defconfig }}"
+          fi
           echo ""
-          echo "=== All defconfigs di repo ==="
+          echo "=== Semua defconfig di repo ==="
           find kernel/arch/arm64/configs -name "*defconfig*" | sort
 
       # ──────────────────────────────────────────────
@@ -87,6 +91,23 @@ jobs:
       - name: Make defconfig
         working-directory: kernel
         run: |
+          DEFCONFIG_NAME="${{ github.event.inputs.defconfig }}"
+
+          # Auto-detect lokasi defconfig di mana pun subfolder-nya
+          DEFCONFIG_PATH=$(find arch/arm64/configs -name "$DEFCONFIG_NAME" | head -1)
+
+          if [ -z "$DEFCONFIG_PATH" ]; then
+            echo "❌ ERROR: $DEFCONFIG_NAME tidak ditemukan di arch/arm64/configs/"
+            echo "File yang tersedia:"
+            find arch/arm64/configs -name "*defconfig*" | sort
+            exit 1
+          fi
+
+          # Buang prefix "arch/arm64/configs/" → make hanya butuh path relatif dari situ
+          DEFCONFIG_REL="${DEFCONFIG_PATH#arch/arm64/configs/}"
+          echo "✅ Ditemukan  : $DEFCONFIG_PATH"
+          echo "   Make target: $DEFCONFIG_REL"
+
           make -j$(nproc) \
             ARCH=arm64 \
             O=out \
@@ -95,7 +116,7 @@ jobs:
             LLVM_IAS=1 \
             CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             CROSS_COMPILE_ARM32=${{ env.CROSS_COMPILE_ARM32 }} \
-            ${{ github.event.inputs.defconfig }}   # ← pakai input, konsisten
+            "$DEFCONFIG_REL"
 
       # ──────────────────────────────────────────────
       # 6. BUILD  (Image.gz + dtbs dalam 1 make, -j full core)
@@ -126,26 +147,46 @@ jobs:
       - name: Pack Image.gz-dtb
         working-directory: kernel
         run: |
-          # Cari DTB: prioritas sdm636 dulu (X00TD), fallback sdm660
+          echo "=== Semua DTB yang di-build ==="
+          find out/arch/arm64/boot/dts -name "*.dtb" 2>/dev/null | sort
+          echo ""
+
+          # Prioritas: sdm636 (X00TD chip), fallback sdm660
+          # Cari file apapun yang mengandung "sdm636", lalu "sdm660"
           DTB_PATH=""
-          for dtb in \
-            out/arch/arm64/boot/dts/qcom/sdm636-mtp.dtb \
-            out/arch/arm64/boot/dts/qcom/sdm636.dtb \
-            out/arch/arm64/boot/dts/qcom/sdm660-mtp.dtb \
-            out/arch/arm64/boot/dts/qcom/sdm660.dtb; do
-            if [ -f "$dtb" ]; then
-              DTB_PATH="$dtb"
+          for pattern in "sdm636" "sdm660"; do
+            FOUND=$(find out/arch/arm64/boot/dts/qcom -name "${pattern}*.dtb" \
+                    2>/dev/null | sort | head -1)
+            if [ -n "$FOUND" ]; then
+              DTB_PATH="$FOUND"
+              echo "✅ DTB dipilih: $DTB_PATH (pattern: $pattern)"
               break
             fi
           done
 
           if [ -n "$DTB_PATH" ]; then
+            # Pastikan Image.gz ada dulu
+            if [ ! -f out/arch/arm64/boot/Image.gz ]; then
+              echo "❌ Image.gz tidak ada! Build gagal?"
+              exit 1
+            fi
             cat out/arch/arm64/boot/Image.gz "$DTB_PATH" \
               > out/arch/arm64/boot/Image.gz-dtb
-            echo "✅ Packed: Image.gz + $DTB_PATH → Image.gz-dtb"
+            # Verifikasi ukuran — harus lebih besar dari Image.gz
+            IMG_SIZE=$(stat -c%s out/arch/arm64/boot/Image.gz)
+            DTB_SIZE=$(stat -c%s out/arch/arm64/boot/Image.gz-dtb)
+            echo "   Image.gz     : $IMG_SIZE bytes"
+            echo "   Image.gz-dtb : $DTB_SIZE bytes"
+            if [ "$DTB_SIZE" -gt "$IMG_SIZE" ]; then
+              echo "✅ DTB berhasil di-append (size bertambah)"
+            else
+              echo "⚠️ WARNING: Image.gz-dtb tidak lebih besar dari Image.gz!"
+            fi
           else
-            echo "⚠️ Tidak ada DTB cocok. DTB yang ada:"
-            find out/arch/arm64/boot/dts/qcom -name "sdm*.dtb" 2>/dev/null | head -20
+            echo "❌ Tidak ada DTB sdm636/sdm660 ditemukan."
+            echo "   Semua DTB yang ada:"
+            find out/arch/arm64/boot/dts -name "*.dtb" 2>/dev/null | sort
+            exit 1
           fi
 
       # ──────────────────────────────────────────────
