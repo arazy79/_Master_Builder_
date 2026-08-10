@@ -155,7 +155,7 @@ jobs:
           # Cari file apapun yang mengandung "sdm636", lalu "sdm660"
           DTB_PATH=""
           for pattern in "sdm636" "sdm660"; do
-            FOUND=$(find out/arch/arm64/boot/dts/qcom -name "${pattern}*.dtb" \
+            FOUND=$(find out/arch/arm64/boot/dts -name "${pattern}*.dtb" \
                     2>/dev/null | sort | head -1)
             if [ -n "$FOUND" ]; then
               DTB_PATH="$FOUND"
@@ -199,7 +199,7 @@ jobs:
           ls -lh kernel/out/arch/arm64/boot/ 2>/dev/null || echo "(kosong)"
           echo ""
           echo "=== sdm*.dtb yang ditemukan ==="
-          find kernel/out/arch/arm64/boot/dts/qcom -name "sdm*.dtb" 2>/dev/null \
+          find kernel/out/arch/arm64/boot/dts -name "sdm*.dtb" 2>/dev/null \
             | head -20 || echo "(tidak ada)"
           echo ""
           echo "=== ccache stats ==="
