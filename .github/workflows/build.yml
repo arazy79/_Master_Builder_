@@ -1,6 +1,3 @@
-yaml 4.19
-
-
 name: Kernel Build X00TD A16
 
 on:
